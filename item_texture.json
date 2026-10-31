@@ -1,0 +1,12 @@
+{
+  "resource_pack_name": "MagicCraft",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "super_stick": {
+      "textures": "textures/items/magic_stick"
+    },
+    "player_status": {
+      "textures": "textures/items/book_normal"
+    }
+  }
+}
