@@ -1,4 +1,3 @@
-```javascript
 import { world, system, ItemStack } from "@minecraft/server";
 import { ActionFormData } from "@minecraft/server-ui";
 
@@ -6,6 +5,7 @@ const STATUS = "magic:status";
 const WAND = "magic:super_stick";
 const attrs = ["電気", "火", "水", "空気"];
 const selected = new Map();
+const floating = new Set();
 
 function tell(p, msg) {
   try {
@@ -33,6 +33,10 @@ async function showStatus(p) {
     if (q.canceled || q.selection === undefined) return;
 
     selected.set(p.id, attrs[q.selection]);
+    if (floating.has(p.id)) {
+      floating.delete(p.id);
+      try { p.removeEffect("levitation"); } catch {}
+    }
     tell(p, `属性を「${attrs[q.selection]}」に設定したよ！`);
   } catch {}
 }
@@ -113,10 +117,17 @@ system.runInterval(() => {
           });
         }
       } else if (a === "空気") {
-        p.addEffect("slow_falling", 40, {
-          amplifier: 0,
-          showParticles: false
-        });
+        if (floating.has(p.id)) {
+          p.addEffect("levitation", 40, {
+            amplifier: 0,
+            showParticles: false
+          });
+        } else {
+          p.addEffect("slow_falling", 40, {
+            amplifier: 0,
+            showParticles: false
+          });
+        }
       }
     } catch {}
   }
@@ -131,6 +142,7 @@ function findTarget(p, maxDistance = 12) {
       const e = hit.entity;
 
       if (!e || e.id === p.id) continue;
+      if (e.typeId === "minecraft:player") continue;
       if (e.typeId === "minecraft:item") continue;
       if (e.typeId === "minecraft:xp_orb") continue;
 
@@ -243,40 +255,34 @@ world.afterEvents.itemUse.subscribe(({ source, itemStack }) => {
       tell(p, "対象の足元と頭上に水を置いた！");
     }
 
-    // 空気属性：対象をプレイヤーから遠ざける
+    // 空気属性：杖を使うたびに浮遊モードを切り替え
     else if (a === "空気") {
-      const target = findTarget(p);
-
-      if (!target) {
-        tell(p, "前方に対象が見つからないよ");
-        return;
+      if (floating.has(p.id)) {
+        floating.delete(p.id);
+        try { p.removeEffect("levitation"); } catch {}
+        tell(p, "浮遊モード OFF");
+      } else {
+        floating.add(p.id);
+        try {
+          p.addEffect("levitation", 40, {
+            amplifier: 0,
+            showParticles: false
+          });
+        } catch {}
+        tell(p, "浮遊モード ON");
       }
 
-      const dx = target.location.x - p.location.x;
-      const dz = target.location.z - p.location.z;
-      const length = Math.sqrt(dx * dx + dz * dz) || 1;
-
-      target.applyImpulse({
-        x: (dx / length) * 2.4,
-        y: 0.75,
-        z: (dz / length) * 2.4
-      });
-
       try {
-        const loc = target.location;
-
+        const loc = p.location;
         for (let i = 0; i < 12; i++) {
           const t = i * Math.PI / 6;
-
           dim.spawnParticle("minecraft:cloud", {
-            x: loc.x + Math.cos(t) * 0.6,
+            x: loc.x + Math.cos(t) * 0.7,
             y: loc.y + 0.8,
-            z: loc.z + Math.sin(t) * 0.6
+            z: loc.z + Math.sin(t) * 0.7
           });
         }
       } catch {}
-
-      tell(p, "風圧で対象を吹き飛ばした！");
     }
   } catch (e) {
     tell(p, "魔法を使えなかったよ");
